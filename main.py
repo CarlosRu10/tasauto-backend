@@ -1,21 +1,13 @@
 """
 TASAUTO - Backend de Tasación vía coches.net
 =============================================
-
-AVISO LEGAL:
-Este sistema realiza scraping automatizado de coches.net.
-- El uso debe respetar los términos y condiciones de coches.net
-- Consulta el fichero robots.txt de coches.net antes de usar
-- Para uso comercial o masivo, contacta con coches.net para un acuerdo
-
-Este código está pensado para pruebas y prototipado.
 """
 
 import logging
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
+from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeout
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -42,52 +34,52 @@ class TasacionResponse(BaseModel):
     valor: str | None = None
     error: str | None = None
 
-def tasar_en_coches_net(data: TasacionRequest) -> str:
+async def tasar_en_coches_net(data: TasacionRequest) -> str:
     logger.info(f"Iniciando tasación: {data.marca} {data.modelo} ({data.anio})")
     
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context(
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        context = await browser.new_context(
             viewport={"width": 1280, "height": 720},
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         )
-        page = context.new_page()
+        page = await context.new_page()
         
         try:
-            page.goto("https://www.coches.net/tasacion-de-coches/", timeout=30000)
+            await page.goto("https://www.coches.net/tasacion-de-coches/", timeout=30000)
             
             try:
-                page.click("button#didomi-notice-agree-button", timeout=5000)
+                await page.click("button#didomi-notice-agree-button", timeout=5000)
             except:
                 pass
             
-            page.wait_for_selector("select[name='brand']", timeout=10000)
-            page.select_option("select[name='brand']", label=data.marca)
-            page.wait_for_timeout(1000)
+            await page.wait_for_selector("select[name='brand']", timeout=10000)
+            await page.select_option("select[name='brand']", label=data.marca)
+            await page.wait_for_timeout(1000)
             
-            page.wait_for_selector("select[name='model']", timeout=10000)
-            page.select_option("select[name='model']", label=data.modelo)
-            page.wait_for_timeout(1000)
+            await page.wait_for_selector("select[name='model']", timeout=10000)
+            await page.select_option("select[name='model']", label=data.modelo)
+            await page.wait_for_timeout(1000)
             
             try:
-                page.wait_for_selector("select[name='version']", timeout=5000)
-                page.select_option("select[name='version']", label=data.version)
-                page.wait_for_timeout(500)
+                await page.wait_for_selector("select[name='version']", timeout=5000)
+                await page.select_option("select[name='version']", label=data.version)
+                await page.wait_for_timeout(500)
             except:
                 logger.info("Campo versión no encontrado, continuando...")
             
-            page.select_option("select[name='year']", label=str(data.anio))
-            page.wait_for_timeout(500)
+            await page.select_option("select[name='year']", label=str(data.anio))
+            await page.wait_for_timeout(500)
             
             km_input = page.locator("input[name='km'], input[name='kilometers']").first
-            km_input.fill(str(data.kms))
+            await km_input.fill(str(data.kms))
             
-            page.click("button[type='submit'], .btn-tasar, button:has-text('Tasar')")
+            await page.click("button[type='submit'], .btn-tasar, button:has-text('Tasar')")
             
-            page.wait_for_selector(".resultado-tasacion, .valuation-result, .price-result", timeout=20000)
+            await page.wait_for_selector(".resultado-tasacion, .valuation-result, .price-result", timeout=20000)
             
             resultado = page.locator(".resultado-tasacion, .valuation-result, .price-result").first
-            valor = resultado.text_content()
+            valor = await resultado.text_content()
             
             logger.info(f"Tasación completada: {valor}")
             return valor.strip() if valor else "Valor no disponible"
@@ -99,14 +91,14 @@ def tasar_en_coches_net(data: TasacionRequest) -> str:
             logger.error(f"Error en scraping: {str(e)}")
             raise
         finally:
-            browser.close()
+            await browser.close()
 
 @app.post("/api/tasar", response_model=TasacionResponse)
 async def tasar(request: TasacionRequest):
     logger.info(f"Petición recibida: {request.marca} {request.modelo}")
     
     try:
-        valor = tasar_en_coches_net(request)
+        valor = await tasar_en_coches_net(request)
         return TasacionResponse(ok=True, valor=valor)
     except Exception as e:
         logger.error(f"Error en tasación: {str(e)}")
