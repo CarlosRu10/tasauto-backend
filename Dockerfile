@@ -2,20 +2,37 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Instalar TODAS las dependencias necesarias para Playwright/Chromium
-RUN apt-get update && apt-get install -y \
-    libnss3 libatk-bridge2.0-0 libdrm2 libxkbcommon0 \
-    libgbm1 libasound2 libxshmfence1 libx11-xcb1 \
-    libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
-    libpango-1.0-0 libcairo2 libatspi2.0-0 \
-    libcups2 libxss1 libxtst6 fonts-liberation \
-    libappindicator3-1 libnss3-tools xdg-utils wget \
+# Instalar dependencias del sistema para Playwright/Chromium
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libnss3 \
+    libatk-bridge2.0-0 \
+    libdrm2 \
+    libxkbcommon0 \
+    libgbm1 \
+    libasound2 \
+    libxshmfence1 \
+    libx11-xcb1 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libatspi2.0-0 \
+    libcups2 \
+    libxext6 \
+    libxcb1 \
+    libx11-6 \
+    fonts-liberation \
+    wget \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-RUN playwright install chromium
-RUN playwright install-deps chromium
+
+# Instalar Chromium y sus dependencias
+RUN playwright install chromium && playwright install-deps chromium
 
 COPY main.py .
 
